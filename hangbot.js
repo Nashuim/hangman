@@ -1,0 +1,77 @@
+const Botkit = require('botkit');
+const Hangman = require("./hangman");
+const {RtmClient, MemoryDataStore, CLIENT_EVENTS} = require('@slack/client');
+const token = process.env.TOKEN;
+let channel_id;
+
+const controller = Botkit.slackbot();
+
+let users = [];
+var rtm = new RtmClient(token, {
+    logLevel: 'error',
+    dataStore: new MemoryDataStore(),
+    autoReconnect: true,
+    autoMark: true
+});
+
+rtm.start();
+
+rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
+    users = rtm.dataStore.users;
+    for(let key of Object.keys(rtm.dataStore.channels)) {
+        let channel = rtm.dataStore.channels[key];
+        if(channel.name === "games") {
+            channel_id = channel.id;
+            break;
+        }
+    }
+    if(!channel_id) {
+        console.error('Channel with name "games" required');
+        process.exit(-1);
+    }
+    rtm.disconnect();
+});
+
+rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
+    const hangBot = controller.spawn({
+        token: token
+    }).startRTM();
+
+    hangBot.replyToUser = function(src, rsp) {
+            src.channel = channel_id;
+            let msg = `${users[src.user].name}: ${rsp}`;
+
+            this.reply(src, msg);
+    };
+});
+
+
+
+
+
+const messageTypes = ['ambient'];
+const hangman = new Hangman();
+
+controller.hears('!hangman (.*)', 'direct_message', (bot, message) => {
+    if(hangman.running) {
+        bot.replyToUser(message,  'A game is already underway, use !quit to stop.');
+    } else {
+        bot.replyToUser(message, hangman.start(message.match[1]));
+    }
+});
+
+controller.hears('!quit', messageTypes, (bot, message) => {
+    if(!hangman.running) {
+        bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
+    } else {
+        bot.replyToUser(message, hangman.stop());
+    }
+});
+
+controller.hears(['!g (.*)', '!guess (.*)'], messageTypes, (bot,message) => {
+    if(!hangman.running) {
+        bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
+    } else {
+        bot.replyToUser(message, hangman.guess(message.match[1]));
+    }
+});
