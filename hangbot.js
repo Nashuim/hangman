@@ -45,10 +45,6 @@ rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
     };
 });
 
-
-
-
-
 const messageTypes = ['ambient'];
 const hangman = new Hangman();
 
@@ -74,4 +70,8 @@ controller.hears(['!g (.*)', '!guess (.*)'], messageTypes, (bot,message) => {
     } else {
         bot.replyToUser(message, hangman.guess(message.match[1]));
     }
+});
+
+controller.hears('!proc_exit', 'direct_message', (bot, message) => {
+    process.exit(0);
 });
