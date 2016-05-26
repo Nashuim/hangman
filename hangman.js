@@ -1,6 +1,10 @@
 const regex = new RegExp("[A-z]");
-const stripRegex = /\s/g;
+const stripRegex = /[^A-z]/g;
 const letterRegex = /\s/i;
+const Difficulty = {
+    Normal : "normal",
+    Hard : "hard"
+};
 
 class Hangman {
     constructor() {
@@ -8,46 +12,54 @@ class Hangman {
         this.running = false;
     }
 
-    guess(letter) {
-        if (!regex.test(letter)) {
+    guess(guessed) {
+        if (!regex.test(guessed)) {
             return "Note that you don't need to guess special characters or numbers";
         }
 
-        letter = letter.toUpperCase();
-//TODO change how correct word check is done.
-        if (!this.guesses[letter]) {
-            if (letter.length > 1) {
-                stripRegex.lastIndex = 0;
-                let stripped = letter.toUpperCase().replace(stripRegex, "");
-                if (stripped === this.strippedWord) {
-                    this.running = false;
-                    return `Congratulations! The word was "${this.word}".`;
-                }
+        stripRegex.lastIndex = 0;
+        guessed = guessed.toUpperCase().replace(stripRegex, "");
+        if (!this.guesses[guessed]) {
+            let correct, end;
+
+            if(guessed.length === 1) {
+                let ocurrences = (this.strippedWord.match(new RegExp(guessed, 'g')) || []).length;
+                this.total += ocurrences;
+                correct = ocurrences > 0;
+                end = this.total === this.strippedWord.length;
+            } else {
+                end = correct = guessed === this.strippedWord;
             }
 
-            let guess = this.guesses[letter] = {
-                letter: letter,
-                correct: this.wordUpper.indexOf(letter) !== -1
+            let guess = this.guesses[guessed] = {
+                letter: guessed,
+                correct: correct
             };
 
             if (!guess.correct)
                 this.nGuesses++;
 
-            let representation = this.representation;
-            if (representation.length === this.strippedWord.length) {
+            if (end) {
                 this.running = false;
                 return `Congratulations! The word was "${this.word}".`;
             } else {
-                let result = guess.correct ? "Correct" : "Incorrect";
-                let extra = "";
-                if (this.nGuesses >= this.maxGuesses)
-                    extra = "- The chat failed! It's possible to quit using !quit";
 
-                return `${result}! [${representation}] - ${this.nGuesses}/${this.maxGuesses} - ${this.allGuesses} ${extra}`;
+                let extra = "";
+                if (this.nGuesses >= this.maxGuesses) {
+                    if(this.difficulty === Difficulty.Normal){
+                        this.running = false;
+                        return `The chat has failed! The word was *${this.word}*`;
+                    }
+
+                    extra = "- The chat has failed! It's possible to quit using !quit";
+                }
+
+                let result = guess.correct ? "*Correct!*" : "_Incorrect_";
+                return `${result} [${this.representation}] - [${this.nGuesses}/${this.maxGuesses}] - ${this.allGuesses} ${extra}`;
             }
 
         } else {
-            return "This letter was already guessed.";
+            return "This was already guessed.";
         }
     }
 
@@ -56,8 +68,13 @@ class Hangman {
         for (let i = 0; i < this.wordUpper.length; ++i) {
             let letter = this.word[i];
             let guess = this.guesses[this.wordUpper[i]];
-            if (!regex.test(letter) && !letterRegex.test(letter) || guess && guess.correct)
-                ret += letter;
+            if (!regex.test(letter) || guess && guess.correct) {
+                if(this.difficulty !== Difficulty.Hard || !letterRegex.test(letter))
+                    ret += letter;
+            } else {
+                if(this.difficulty === Difficulty.Normal)
+                    ret += "_";
+            }
         }
 
         return ret;
@@ -77,20 +94,22 @@ class Hangman {
         return `Right: ${right.join()} Wrong: ${wrong.join()}`;
     }
 
-    start(word) {
+    start(word, difficulty) {
         this.word = word;
         this.wordUpper = word.toUpperCase();
         this.guesses = {};
         this.nGuesses = 0;
+        this.total = 0;
         this.strippedWord = this.wordUpper.replace(stripRegex, "");
+        this.difficulty = difficulty || Difficulty.Normal;
         this.running = true;
 
-        return `A new Hangman game has started! [${this.representation}] ${this.nGuesses}/${this.maxGuesses}.`;
+        return `A new Hangman game has started! [${this.representation}] [${this.nGuesses}/${this.maxGuesses}}.`;
     }
 
     stop() {
         this.running = false;
-        return `Game stopped, the word was "${this.word}".`;
+        return `Game stopped, the word was *${this.word}*.`;
     }
 }
 

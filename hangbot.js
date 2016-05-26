@@ -16,56 +16,57 @@ var rtm = new RtmClient(token, {
 
 rtm.start();
 
-rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
+rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function () {
     users = rtm.dataStore.users;
-    for(let key of Object.keys(rtm.dataStore.channels)) {
-        let channel = rtm.dataStore.channels[key];
-        if(channel.name === "games") {
+
+    for (let key of Object.keys(rtm.dataStore.groups)) {
+        let channel = rtm.dataStore.groups[key];
+        if (channel.name === "test") {
             channel_id = channel.id;
             break;
         }
     }
-    if(!channel_id) {
+    if (!channel_id) {
         console.error('Channel with name "games" required');
         process.exit(-1);
     }
     rtm.disconnect();
 });
 
-rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
+rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function () {
     const hangBot = controller.spawn({
         token: token
     }).startRTM();
 
-    hangBot.replyToUser = function(src, rsp) {
-            src.channel = channel_id;
-            let msg = `${users[src.user].name}: ${rsp}`;
+    hangBot.replyToUser = function (src, rsp) {
+        src.channel = channel_id;
+        let msg = `${users[src.user].name}: ${rsp}`;
 
-            this.reply(src, msg);
+        this.reply(src, msg);
     };
 });
 
 const messageTypes = ['ambient'];
 const hangman = new Hangman();
 
-controller.hears('!hangman (.*)', 'direct_message', (bot, message) => {
-    if(hangman.running) {
-        bot.replyToUser(message,  'A game is already underway, use !quit to stop.');
+controller.hears('^!hangman ([\\w À-ÿ:\\-\']+)(?: \\| )?(normal|hard)?$', 'direct_message',  (bot, message) => {
+    if (hangman.running) {
+        bot.replyToUser(message, 'A game is already underway, use !quit to stop.');
     } else {
-        bot.replyToUser(message, hangman.start(message.match[1]));
+        bot.replyToUser(message, hangman.start(message.match[1], message.match[2]));
     }
 });
 
 controller.hears('!quit', messageTypes, (bot, message) => {
-    if(!hangman.running) {
+    if (!hangman.running) {
         bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
     } else {
         bot.replyToUser(message, hangman.stop());
     }
 });
 
-controller.hears(['!g (.*)', '!guess (.*)'], messageTypes, (bot,message) => {
-    if(!hangman.running) {
+controller.hears(['!g (.*)', '!guess (.*)'], messageTypes, (bot, message) => {
+    if (!hangman.running) {
         bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
     } else {
         bot.replyToUser(message, hangman.guess(message.match[1]));
