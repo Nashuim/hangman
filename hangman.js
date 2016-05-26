@@ -1,5 +1,5 @@
-const regex = new RegExp("[A-z]");
-const stripRegex = /[^A-z]/g;
+const regex = new RegExp("[A-Za-z]");
+const stripRegex = /[^A-Za-z]/g;
 const letterRegex = /\s/i;
 const Difficulty = {
     Normal : "normal",
