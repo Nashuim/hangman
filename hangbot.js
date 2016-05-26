@@ -48,7 +48,7 @@ rtm.start();
 rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function () {
     users = rtm.dataStore.users;
 
-    for (let key of Object.keys(rtm.dataStore.groups)) {
+    for (let key of Object.keys(rtm.dataStore.channels)) {
         let channel = rtm.dataStore.channels[key];
         if (channel.name === channelName) {
             channel_id = channel.id;
