@@ -41,21 +41,21 @@ class Hangman {
 
             if (end) {
                 this.running = false;
-                return `Congratulations! The word was "${this.word}".`;
+                return `Congratulations! The word was "*${this.word}*".`;
             } else {
 
                 let extra = "";
                 if (this.nGuesses >= this.maxGuesses) {
                     if(this.difficulty === Difficulty.Normal){
                         this.running = false;
-                        return `The chat has failed! The word was *${this.word}*`;
+                        return `The chat has failed! The word was *${this.word}*.`;
                     }
 
-                    extra = "- The chat has failed! It's possible to quit using !quit";
+                    extra = "- The chat has failed! It's possible to quit using !quit.";
                 }
 
                 let result = guess.correct ? "*Correct!*" : "_Incorrect_";
-                return `${result} [${this.representation}] - [${this.nGuesses}/${this.maxGuesses}] - ${this.allGuesses} ${extra}`;
+                return `${result} [${this.representation}] [${this.nGuesses}/${this.maxGuesses}] ${this.allGuesses} ${extra}`;
             }
 
         } else {
@@ -81,17 +81,16 @@ class Hangman {
     }
 
     get allGuesses() {
-        let right = [];
-        let wrong = [];
+        let words = [];
         for (let key of Object.keys(this.guesses)) {
             let g = this.guesses[key];
             if (g.correct)
-                right.push(g.letter);
+                words.push(`*${g.letter}*`);
             else
-                wrong.push(g.letter);
+                words.push(`_${g.letter}_`);
         }
 
-        return `Right: ${right.join()} Wrong: ${wrong.join()}`;
+        return words.join(", ");
     }
 
     start(word, difficulty) {
@@ -101,6 +100,8 @@ class Hangman {
         this.nGuesses = 0;
         this.total = 0;
         this.strippedWord = this.wordUpper.replace(stripRegex, "");
+        if(this.strippedWord.length === 0)
+            return false;
         this.difficulty = difficulty || Difficulty.Normal;
         this.running = true;
 
