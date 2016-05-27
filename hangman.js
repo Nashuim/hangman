@@ -77,7 +77,7 @@ class Hangman {
             }
         }
 
-        return ret;
+        return `\`${ret}\``;
     }
 
     get allGuesses() {
@@ -90,7 +90,7 @@ class Hangman {
                 words.push(`_${g.letter}_`);
         }
 
-        return "`words.join(", ")`";
+        return words.join(", ");
     }
 
     start(word, difficulty) {
