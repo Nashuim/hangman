@@ -1,89 +1,20 @@
-const Botkit = require('botkit');
+
 const Hangman = require("./hangman");
-const request = require("request");
-const {RtmClient, MemoryDataStore, CLIENT_EVENTS} = require('@slack/client');
-const token = process.env.TOKEN;
-const channelName = process.env.CHANNEL || "games";
+const api = require("./api");
+const controller = require("./rtm");
 
+api.updateCount();
 
-const base_request_options = {
-    baseUrl : "http://www.giantbomb.com/api",
-    qs: {
-        api_key: process.env.GAME_API_KEY,
-        format: "json",
-        field_list : "name"
-    },
-    headers: {
-        "User-Agent" : "Hangman game for my slack team using game names"
-    }
-};
-
-const api = request.defaults(base_request_options);
-
-let channel_id, gameCount;
-
-
-
-api("/games", (err, res, body) => {
-    if(err || res.statusCode !== 200) {
-        console.log("Error on count...");
-        process.exit(-2);
-    } else {
-        gameCount = JSON.parse(body).number_of_total_results;
-    }
-});
-
-const controller = Botkit.slackbot();
-
-let users = [];
-
-const rtm = new RtmClient(token, {
-    logLevel: 'error',
-    dataStore: new MemoryDataStore(),
-    autoReconnect: true,
-    autoMark: true
-});
-rtm.start();
-
-rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function () {
-    users = rtm.dataStore.users;
-
-    for (let key of Object.keys(rtm.dataStore.channels)) {
-        let channel = rtm.dataStore.channels[key];
-        if (channel.name === channelName) {
-            channel_id = channel.id;
-            break;
-        }
-    }
-    if (!channel_id) {
-        console.error(`Channel with name "${channelName}" required`);
-        process.exit(-1);
-    }
-    rtm.disconnect();
-});
-
-rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function () {
-    const hangBot = controller.spawn({
-        token: token
-    }).startRTM();
-
-    hangBot.replyToUser = function (src, rsp) {
-        src.channel = channel_id;
-        let msg = `${users[src.user].name}: ${rsp}`;
-
-        this.reply(src, msg);
-    };
-});
-
+let currentGame = null;
 const messageTypes = ['ambient'];
 const hangman = new Hangman();
 
-controller.hears('^!hangman ([\\w À-ÿ:\\-\'\.]+)(?: \\| )?(normal|hard)?$', 'direct_message',  (bot, message) => {
+controller.hears('^!hangman ([\\w À-ÿ:\\-\'\.]+)(?: \\| )?(normal|hard)?$', 'direct_message', (bot, message) => {
     if (hangman.running) {
         bot.reply(message, 'A game is already underway, use !quit in the channel to stop.');
     } else {
         let result = hangman.start(message.match[1], message.match[2]);
-        if(!result)
+        if (!result)
             bot.reply(message, "I can't start a game with that!");
         else
             bot.replyToUser(message, result);
@@ -94,7 +25,7 @@ controller.hears('!quit', messageTypes, (bot, message) => {
     if (!hangman.running) {
         bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
     } else {
-        bot.replyToUser(message, hangman.stop());
+        finishHangman(bot, message, hangman.stop());
     }
 });
 
@@ -102,7 +33,12 @@ controller.hears(['!g (.*)', '!guess (.*)'], messageTypes, (bot, message) => {
     if (!hangman.running) {
         bot.replyToUser(message, 'No game is currently underway, you can start one using !hangman {word}');
     } else {
-        bot.replyToUser(message, hangman.guess(message.match[1]));
+        const result = hangman.guess(message.match[1]);
+        if (!hangman.running) {
+            finishHangman(bot, message, result);
+        } else {
+            bot.replyToUser(message, result);
+        }
     }
 });
 
@@ -110,18 +46,99 @@ controller.hears('!gamehangman(?: (normal|hard))?', messageTypes, (bot, message)
     if (hangman.running) {
         bot.replyToUser(message, 'A game is already underway, use !quit in the channel to stop.');
     } else {
-        let gameId = Math.floor(Math.random() * gameCount) + 1;
-        api(`/game/3030-${gameId}`, (err, res, body) => {
-            let name = JSON.parse(body).results.name;
-            if (err || res.statusCode !== 200 || !name) {
-                bot.replyToUser(message, "Woops! You somehow managed to hit a game that doesn't exist! Nice luck. Try again?")
-            } else {
-                bot.replyToUser(message, hangman.start(name, message.match[1]));
-            }
-        });
+        api.getGame().then(game => {
+            currentGame = game;
+            bot.replyToUser(message, hangman.start(game.name, message.match[1]));
+        }).catch(err => {
+            bot.replyToUser(message, err.message);
+        })
     }
 });
 
 controller.hears('!proc_exit', 'direct_message', (bot, message) => {
     process.exit(0);
 });
+
+controller.hears('!update_count', 'direct_message', (bot, message) => {
+    api.updateCount().then(count => bot.reply(message, `Game count updated to ${count}`));
+});
+
+function finishHangman(bot, message, text) {
+    let attachments = null;
+    if (currentGame) {
+        attachments = [
+            {
+               fallback: currentGame.name,
+               color: "#4d5051",
+               title: currentGame.name,
+               title_link: currentGame.site_detail_url,
+               text: currentGame.deck,
+               footer: "Hangbot",
+               footer_icon: "http://www.learntarot.com/bigjpgs/maj12.jpg",
+               fields: [
+                   field("Platforms", currentGame.platforms),
+                   field("Genres", currentGame.genres),
+                   field("Developers", currentGame.developers),
+                   field("Publishers", currentGame.publishers),
+                   releaseDateField(currentGame)
+                ]
+            }
+        ];
+
+        if(currentGame.image){
+             attachments[0].image_url = currentGame.image.super_url;
+             attachments[0].thumb_url =  currentGame.image.thumb_url;
+        }
+
+        currentGame = null;
+    }
+
+    bot.replyToUser(message, text, attachments);
+}
+
+function field(title, values){
+    if(values){
+        return {
+            title: title,
+            value: values.map(v => v.abbreviation || v.name).join(", "),
+            short: true
+        }
+    }
+}
+
+function releaseDateField(game){
+    let date = null;
+    if(game.original_release_date)
+        date = game.original_release_date.slice(0, 10);
+    else if(game.expected_release_day || game.expected_release_month || game.expected_release_quarter || game.expected_release_year){
+        date = "";
+
+        if(game.expected_release_year){
+            date = game.expected_release_year;
+        }
+
+        if(game.expected_release_month){
+            date = `Q${game.expected_release_quarter} ` + date;
+        }
+
+        if(game.expected_release_month){
+            date = `${game.expected_release_month} ` + date;
+        }
+
+        if(game.expected_release_day){
+            date = `${game.expected_release_day} ` + date;
+        }
+
+        if(date){
+            date = "Expected in " + date;
+        }
+    }
+
+    if(date){
+        return {
+            title: "Release Date",
+            value : date,
+            short: true
+        }
+    }
+}
