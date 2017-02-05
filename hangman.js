@@ -77,7 +77,7 @@ class Hangman {
             }
         }
 
-        return ret;
+        return `\`${ret}\``;
     }
 
     get allGuesses() {
