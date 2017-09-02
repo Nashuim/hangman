@@ -20,9 +20,11 @@ rtm.start();
 
 rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function () {
     users = rtm.dataStore.users;
-
-    for (let key of Object.keys(rtm.dataStore.channels)) {
-        let channel = rtm.dataStore.channels[key];
+    const channels = process.env.NODE_ENV === "development" 
+                        ? rtm.dataStore.groups 
+                        : rtm.dataStore.channels;
+    for (let key of Object.keys(channels)) {
+        let channel = channels[key];
         if (channel.name === channelName) {
             channel_id = channel.id;
             break;

@@ -1,7 +1,6 @@
-
 const Hangman = require("./hangman");
 const api = require("./api");
-const controller = require("./rtm");
+const controller = require("../rtm");
 
 api.updateCount();
 
@@ -53,10 +52,6 @@ controller.hears('!gamehangman(?: (normal|hard))?', messageTypes, (bot, message)
             bot.replyToUser(message, err.message);
         })
     }
-});
-
-controller.hears('!proc_exit', 'direct_message', (bot, message) => {
-    process.exit(0);
 });
 
 controller.hears('!update_count', 'direct_message', (bot, message) => {
